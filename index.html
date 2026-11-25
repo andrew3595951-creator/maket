@@ -42,6 +42,7 @@ td{padding:9px 0;border-bottom:1px solid var(--line);vertical-align:top}
 td:first-child{width:9.5em;font-weight:600;padding-right:12px}
 ol{margin:0;padding-left:22px;display:grid;gap:8px}
 .note{font-size:14px;color:var(--muted);margin:12px 0 0}
+.note a{color:var(--sky)}
 kbd{font:600 13px/1 "Golos Text",sans-serif;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:2px 7px;background:var(--panel)}
 @media(max-width:600px){.fig{aspect-ratio:4/5}td:first-child{width:7.5em}}
 </style>
@@ -70,7 +71,7 @@ kbd{font:600 13px/1 "Golos Text",sans-serif;border:1px solid var(--line);border-
         <tr><td>Кнопка <kbd>A</kbd> / <kbd>X</kbd></td><td>Убрать сцену и расставить точки заново.</td></tr>
         <tr><td>Руки</td><td>Без контроллеров работает щипок пальцами вместо курка.</td></tr>
       </table>
-      <p class="note">Масштаб около 1:100: вертолёт 13 см, высота полёта 25 см над столом. Звук в шлеме включается сам и идёт оттуда, где летит вертолёт.</p>
+      <p class="note">Масштаб около 1:150: вертолёт с винтом 17 см, высота полёта 25 см над столом. Звук в шлеме включается сам и идёт оттуда, где летит вертолёт.</p>
     </section>
     <section class="card">
       <h2>Проверка на кухне</h2>
@@ -82,6 +83,7 @@ kbd{font:600 13px/1 "Golos Text",sans-serif;border:1px solid var(--line);border-
         <li>Обойди стол и послушай: звук винтов должен идти от вертолёта.</li>
       </ol>
       <p class="note" id="modelNote">Модель вертолёта: самодельная. Положи рядом файл heli.glb, и страница возьмёт его.</p>
+      <p class="note" id="credit" hidden>Модель вертолёта: <a href="https://sketchfab.com/3d-models/russian-transport-heli-ab981d28f7124a489cd1b1992b2e467b">«Russian Transport Heli»</a>, автор <a href="https://sketchfab.com/jeandiz">Mateusz Woliński</a>, лицензия <a href="http://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Масштаб и материалы подогнаны под сцену.</p>
     </section>
   </div>
 </div></div>
@@ -91,7 +93,8 @@ kbd{font:600 13px/1 "Golos Text",sans-serif;border:1px solid var(--line);border-
 <script>
 {
 /* настройки модели вертолёта: подгоняются под конкретный файл */
-const HELI = {file:'heli.glb', length:0.13, yawDeg:0, lift:0, rotor:'', tail:'', credit:''};
+const HELI = {file:'heli.glb', length:0.17, yawDeg:90, lift:0, rotor:'Rotor_Hub', rotorAxis:'z', tail:'rotor_q', tailAxis:'x'};
+let rAxis='y', tAxis='z';
 
 const $ = id => document.getElementById(id);
 const cv = $('cv'), fig = $('fig'), statusEl = $('status');
@@ -237,15 +240,17 @@ if (THREE.GLTFLoader) new THREE.GLTFLoader().load(HELI.file, gl => {
   const s=HELI.length/Math.max(size.x,size.z); root.scale.setScalar(s); root.updateMatrixWorld(true);
   const b2=new THREE.Box3().setFromObject(root), c=b2.getCenter(V(0,0,0)); root.position.set(-c.x,-b2.min.y-0.036+HELI.lift,-c.z);
   const wrap=new THREE.Group(); wrap.rotation.y=HELI.yawDeg*Math.PI/180; wrap.add(root); tilt.add(wrap); proc.visible=false; cast(wrap);
-  rotorObj = HELI.rotor ? root.getObjectByName(HELI.rotor) : null; tailObj = HELI.tail ? root.getObjectByName(HELI.tail) : null;
+  rotorObj = HELI.rotor ? root.getObjectByName(HELI.rotor) : null; tailObj = HELI.tail ? root.getObjectByName(HELI.tail) : null; rAxis=HELI.rotorAxis; tAxis=HELI.tailAxis;
+  if (rotorObj){ heli.updateMatrixWorld(true); const rs=new THREE.Box3().setFromObject(rotorObj).getSize(V(0,0,0)), hub=tilt.worldToLocal(rotorObj.getWorldPosition(V(0,0,0)));
+    const d2=new THREE.Mesh(new THREE.RingGeometry(0.008,Math.max(rs.x,rs.z)*0.53,48),discMat); d2.rotation.x=-Math.PI/2; d2.position.copy(hub).add(V(0,0.002,0)); tilt.add(d2); }
   if (gl.animations.length){ mixer=new THREE.AnimationMixer(root); gl.animations.forEach(a=>mixer.clipAction(a).play()); }
-  $('modelNote').textContent = 'Модель вертолёта: ' + HELI.file + (HELI.credit ? ' · ' + HELI.credit : '');
+  $('modelNote').hidden = true; $('credit').hidden = false;
 }, undefined, () => {});
 
 /* сцены: P — площадка, F — пожар */
 const P = V(-0.3,0,0.1), F = V(0.12,0,-0.25);
 let sceneName='heli', T=0, fireLevel=1;
-const R=0.16, v=0.2, cruise=()=>Math.max(P.y,F.y)+0.25;
+const R=0.18, v=0.2, cruise=()=>Math.max(P.y,F.y)+0.25;
 let PL;
 function plan(){ const toP=V(P.x-F.x,0,P.z-F.z).normalize(), E=V(F.x+toP.x*R,cruise(),F.z+toP.z*R);
   const tFly=Math.max(2.5,Math.hypot(E.x-P.x,E.z-P.z)/v), ph=[['spin',3],['climb',3.5],['fly',tFly],['orbit',15],['back',tFly],['down',4],['stop',2.5],['rest',3]];
@@ -273,7 +278,7 @@ function updateHeli(dt){
   heli.position.copy(b.p).add(V(wob*0.004*Math.sin(tt*0.9), 0.036+wob*0.003*Math.sin(tt*1.4), wob*0.004*Math.cos(tt*1.1)));
   heli.rotation.set(0,yaw,0); tilt.rotation.set(roll,0,pitch,'YXZ');
   const target = b.ph==='spin'?b.k : b.ph==='stop'?1-b.k : b.ph==='rest'?0 : 1; rpm += (target-rpm)*Math.min(1,dt*2);
-  spin += dt*rpm*45; if (rotorObj) rotorObj.rotation.y=spin; if (tailObj) tailObj.rotation.z=spin*1.7; discMat.opacity=0.16*rpm*rpm;
+  spin += dt*rpm*45; if (rotorObj) rotorObj.rotation[rAxis]=spin; if (tailObj) tailObj.rotation[tAxis]=spin*1.7; discMat.opacity=0.16*rpm*rpm;
   if (mixer) mixer.update(dt*rpm);
   const height=b.p.y-P.y;
   if (rpm>0.5 && height<0.09 && Math.random()<dt*28*rpm*(1-height/0.09)){ const ang=rnd(0,6.28), dir=V(Math.cos(ang),0,Math.sin(ang));
